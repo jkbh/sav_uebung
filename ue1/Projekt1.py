@@ -112,24 +112,19 @@ def main():
         print("No cached data found. Generating features...")
 
         data_dir = os.path.join(get_file_dir(), "data")
-        files = librosa.util.find_files(data_dir, ext="wav", recurse=True) # recursive search for .wav files in data folder
+        files = librosa.util.find_files(data_dir, ext="wav", recurse=True) # recursive search for .wav files in data folder   
 
-        for file in tqdm(files, unit="files"):
-            #print(file)
-            instrument = file.split("[", maxsplit=1)[1][:3] # get instrument from filename
+        instruments = [file.split("[", maxsplit=1)[1][:3] for file in files] # get main instrument for every file
+        relevant_files = [(file, instrument) for file, instrument in zip(files, instruments) if instrument in clsnames] # get (filepath, instrument) pairs of wanted instruments
 
-            # skip loading if file has unwanted instrument
-            if instrument not in clsnames:
-                continue 
-
-            label = clsnames.index(instrument) # convert first instrument to label
+        for file, instrument in tqdm(relevant_files, unit="files"):
+            label = clsnames.index(instrument) # convert instrument to label
+            data['labels'].append(label)
             
-            y, sr = librosa.load(file, sr=sr) # load wav and convert to mono by averaging stereo channels
+            y, sr = librosa.load(file, sr=sr) # load wav and convert to mono by averaging stereo channels            
             
             all_features = []
-            
             data['signals'].append(y)
-            data['labels'].append(label)
 
             # FEATURE GENERATION
             mel_spec = librosa.feature.melspectrogram(y=y, sr=sr) # generate mel-spectrogram
