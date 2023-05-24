@@ -2,12 +2,11 @@
 # Jakob Horbank
 #
 # Es wird erwartet, dass die es einen Ordner ./data gibt in dem die .wav Dateien liegen.
-# Das IRMAS .zip kann so wie es ist in den ./data Ordner extrahiert werden.
+# Das IRMAS Archiv kann so wie es ist in den ./data Ordner entpackt werden.
 #
 # Abhängigkeiten installieren mit:
 # pip install librosa scikit-learn tqdm
 
-import re
 import os
 import librosa
 import numpy as np
@@ -42,7 +41,7 @@ def train_classifier(X_train, y_train):
     """Train Random Forest CLassifier on data and return training statistics"""
 
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2) # split into random train and validation sets
-    classifier = RandomForestClassifier(100)
+    classifier = RandomForestClassifier(250)
 
     classifier.fit(X_train, y_train)
 
@@ -150,8 +149,7 @@ def main():
         cache_data(data)
                 
     else:
-        data = data_cached
-        print("Found cached data and using it for training.")    
+        data = data_cached  
 
     make_plot(data, sr, clsnames)
 
@@ -160,7 +158,7 @@ def main():
 
     # TRAINING
     for feature_name, feature_data in feature_list:
-        X_train, X_test, y_train, y_test = train_test_split(feature_data, labels, test_size=0.05, random_state=1) # random_state for to ensure same split for all tests
+        X_train, X_test, y_train, y_test = train_test_split(feature_data, labels, test_size=0.05, random_state=1) # random_state to ensure same split for all tests
 
         print(f"\nFitting classifier on '{feature_name}' features...")
         classifier, train_error, val_error = train_classifier(X_train, y_train) # generate and train new classifier on current features
