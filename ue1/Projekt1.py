@@ -1,13 +1,13 @@
 # Melf Fritsch
 # Jakob Horbank
 #
-# Es wird erwartet, dass die es einen Ordner ./data gibt, in dem vier Ordner gel, pia, voi, cel mit den jeweiligen .wav Dateien liegen.
-# Das Skript und der ./data Ordner müssen im cwd liegen
+# Es wird erwartet, dass die es einen Ordner ./data gibt in dem die .wav Dateien liegen.
+# Das IRMAS .zip kann so wie es ist in den ./data Ordner extrahiert werden.
 #
 # Abhängigkeiten installieren mit:
 # pip install librosa scikit-learn tqdm
 
-
+import re
 import os
 import librosa
 import numpy as np
@@ -16,27 +16,27 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from matplotlib import pyplot as plt
 
-data_dir = os.path.join(os.getcwd(), "data")
-clsnames = ['gel', 'pia', 'voi', 'cel']
 
-sr = 44100
+def get_cached_data():
+    '''Load cached data dictionary. Returns none if cached is not found.'''
+    file_dir = get_file_dir()
+    fp = os.path.join(file_dir, "data", f"data.npz")
+    try:
+        data = np.load(fp)
+    except :
+        return None
+    print(f"Loading cached data from {fp}")
+    return data
 
-# # for debugging purposes
-# labels = [1]
-# features = {
-#     "mel_spectrogram_avg": [np.array([1,2,3,4,5])],
-#     "mfcc_avg": [np.array([1,1,1,1,1])],
-#     "chroma_avg": [np.array([1,1,1,1,1])],
-# }
-
-labels = []
-
-# storage for all lists of features per signal
-features = {
-    "mel_spectrogram_avg": [],
-    "mfcc_avg": [],
-    "chroma_avg": [],
-}
+def cache_data(data):
+    '''Write data dictionary into .npz file'''
+    file_dir = get_file_dir()
+    fp = os.path.join(file_dir, "data", f"data.npz")
+    if os.path.exists(fp):
+        return
+    
+    np.savez(fp, **data)
+    print(f"Data cached into {fp}")
 
 def train_classifier(X_train, y_train):
     """Train Random Forest CLassifier on data and return training statistics"""
@@ -51,70 +51,119 @@ def train_classifier(X_train, y_train):
 
     return classifier, train_error, val_error
 
-fig, ax = plt.subplots(nrows=4, ncols=4, sharex=True) # create 4x4 subplot
+def make_plot(data, sr, clsnames):
+    '''Create and save plot of used features'''
+    signals = data['signals']
+    labels = data['labels']
+    num_signals = 4
+    idxs = np.random.randint(0, len(signals), size=num_signals) # 4 random indices of signals
 
-# DATA LOADING
-print("Reading data and generating features")
-for label, clsname in enumerate(clsnames):
-    clsdir = os.path.join(data_dir, clsname)
+    fig, ax = plt.subplots(nrows=4, ncols=4, sharex=True, sharey='row', figsize=(20,10)) # create 4x4 subplot
 
-    for i, file in enumerate(tqdm(os.listdir(clsdir), desc=f"{clsname}", unit="files")):
-        if file.endswith('.wav'):
-            filepath = os.path.join(clsdir, file)
-            y, sr = librosa.load(filepath) # load wav and convert to mono by averaging stereo channels
+    for col, idx in enumerate(idxs):
+        y=signals[idx]
+        label=labels[idx]
+
+        librosa.display.waveshow(y, sr=sr, axis='time', ax=ax[0, col])
+
+        mel_spec = librosa.feature.melspectrogram(y=y, sr=sr) # generate mel-spectrogram
+        mel_spec_dB = librosa.power_to_db(mel_spec) # convert spectrogram values into dB scale                
+        librosa.display.specshow(mel_spec_dB, sr=sr, x_axis="time", y_axis="mel", ax=ax[1, col])
+
+        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13) # calculate 13 mfcc values
+        librosa.display.specshow(mfcc, sr=sr, x_axis="time", ax=ax[2, col])
+
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr) # calculate power spectrum chromagram
+        librosa.display.specshow(chroma, sr=sr, x_axis="time", y_axis="chroma", ax=ax[3, col])
+
+        ax[0, col].set_title(f"Instrument: {clsnames[label]}")
+        ax[1, col].set_title("Mel Spectrogram")
+        ax[2, col].set_title("MFCC")
+        ax[3, col].set_title("Chromagram")
+
+    fig.suptitle("Features for randomly picked signals (before averaging over time)")
+    fig.tight_layout()
+
+    fp = os.path.join(get_file_dir(), "features.jpg")
+    fig.savefig(fp)
+    print(f"Saved plot to {fp}")
+
+def get_file_dir():
+    return os.path.dirname(os.path.realpath(__file__))
+
+def main():
+    clsnames = ['gel', 'pia', 'voi', 'cel']
+    sr = 44100
+
+    # storage for all lists of features per signal
+    data = {
+        "signals": [],
+        "labels": [],
+        "mel_spectrogram_avg": [],
+        "mfcc_avg": [],
+        "chroma_avg": [],
+    }
+
+    # DATA LOADING/CACHING
+    data_cached = get_cached_data()
+
+    if not data_cached:
+        print("No cached data found. Generating features...")
+
+        data_dir = os.path.join(get_file_dir(), "data")
+        files = librosa.util.find_files(data_dir, ext="wav", recurse=True) # recursive search for .wav files in data folder
+
+        for file in tqdm(files, unit="files"):
+            #print(file)
+            instrument = file.split("[", maxsplit=1)[1][:3] # get instrument from filename
+
+            # skip loading if file has unwanted instrument
+            if instrument not in clsnames:
+                continue 
+
+            label = clsnames.index(instrument) # convert first instrument to label
             
+            y, sr = librosa.load(file, sr=sr) # load wav and convert to mono by averaging stereo channels
+            
+            data['signals'].append(y)
+            data['labels'].append(label)
+
             # FEATURE GENERATION
             mel_spec = librosa.feature.melspectrogram(y=y, sr=sr) # generate mel-spectrogram
             mel_spec_dB = librosa.power_to_db(mel_spec) # convert spectrogram values into dB scale
             mel_spec_dB_avg = np.mean(mel_spec_dB, axis=1) # average frequencies over time
-            features['mel_spectrogram_avg'].append(mel_spec_dB_avg)
+            data['mel_spectrogram_avg'].append(mel_spec_dB_avg)
 
             mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13) # calculate 13 mfcc values
             mfcc_avg = np.mean(mfcc, axis=1) # average mfcc values over time
-            features['mfcc_avg'].append(mfcc_avg)
+            data['mfcc_avg'].append(mfcc_avg)
 
-            chroma = librosa.feature.chroma_stft(y=y, sr=sr) # calculate power spectrum chromagram
+            chroma = librosa.feature.chroma_stft(y=y, sr=sr) # calculate chromagram
             chroma_avg = np.mean(chroma, axis=1) # average values over time
-            features["chroma_avg"].append(chroma_avg)
+            data["chroma_avg"].append(chroma_avg)
 
-            labels.append(label) 
-
-            # plot signal and features (before averaging) for first example from every class
-            if i == 0:                
-                ax[0,label].set_title(f"Instrument: {clsname}")
-                librosa.display.waveshow(y, sr=sr, axis='time', ax=ax[0, label])                
-                librosa.display.specshow(mel_spec_dB, sr=sr, x_axis="time", y_axis="mel", ax=ax[1, label])
-                librosa.display.specshow(mfcc, sr=sr, x_axis="time", ax=ax[2, label])
-                librosa.display.specshow(chroma, sr=sr, x_axis="time", y_axis="chroma", ax=ax[3, label])
-
+        cache_data(data)
                 
-labels = np.array(labels)
-print("Done.")       
+    else:
+        data = data_cached
+        print("Found cached data and using it for training.")    
 
-# PLOT
-print("If the plot is ugly make it bigger :)")
-print("Close plot to start training")
+    make_plot(data, sr, clsnames)
 
-ax[0,0].set(ylabel="Signal")
-ax[1,0].set(ylabel="Mel Spectrogram")
-ax[2,0].set(ylabel="MFCC")
-ax[3,0].set(ylabel="Chromagram")
+    labels = data['labels']
+    feature_list = list(data.items())[2:] # seperate features from signals and labels
 
-for i in range(4):
-    ax[i,0].label_outer()
-fig.suptitle("Example Features for each class (before averaging over time)")
-plt.show()  
+    # TRAINING
+    for feature_name, feature_data in feature_list:
+        X_train, X_test, y_train, y_test = train_test_split(feature_data, labels, test_size=0.05, random_state=1) # random_state for to ensure same split for all tests
 
+        print(f"\nFitting classifier on '{feature_name}' features...")
+        classifier, train_error, val_error = train_classifier(X_train, y_train) # generate and train new classifier on current features
+        print(f"{train_error=}")
+        print(f"{val_error=}")
 
-# TRAINING
-for feature_name, feature_data in features.items():
-    X_train, X_test, y_train, y_test = train_test_split(feature_data, labels, test_size=0.05, random_state=1) # random_state for to ensure same split for all tests
+        test_error = 1 - classifier.score(X_test, y_test)
+        print(f"{test_error=}")
 
-    
-    print(f"\nFitting classifier on '{feature_name}' features...")
-    classifier, train_error, val_error = train_classifier(X_train, y_train) # generate and train new classifier on current features
-    print(f"{train_error=}")
-    print(f"{val_error=}")
-
-    test_error = 1 - classifier.score(X_test, y_test)
-    print(f"{test_error=}")
+if __name__ == "__main__":
+    main()
