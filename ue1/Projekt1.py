@@ -102,6 +102,7 @@ def main():
         "mel_spectrogram_avg": [],
         "mfcc_avg": [],
         "chroma_avg": [],
+        "combined": [],
     }
 
     # DATA LOADING/CACHING
@@ -125,6 +126,8 @@ def main():
             
             y, sr = librosa.load(file, sr=sr) # load wav and convert to mono by averaging stereo channels
             
+            all_features = []
+            
             data['signals'].append(y)
             data['labels'].append(label)
 
@@ -133,15 +136,22 @@ def main():
             mel_spec_dB = librosa.power_to_db(mel_spec) # convert spectrogram values into dB scale
             mel_spec_dB_avg = np.mean(mel_spec_dB, axis=1) # average frequencies over time
             data['mel_spectrogram_avg'].append(mel_spec_dB_avg)
-
+            all_features.append(mel_spec_dB_avg)
+            
             mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13) # calculate 13 mfcc values
             mfcc_avg = np.mean(mfcc, axis=1) # average mfcc values over time
             data['mfcc_avg'].append(mfcc_avg)
+            all_features.append(mfcc_avg)
 
             chroma = librosa.feature.chroma_stft(y=y, sr=sr) # calculate chromagram
             chroma_avg = np.mean(chroma, axis=1) # average values over time
             data["chroma_avg"].append(chroma_avg)
+            all_features.append(chroma_avg)
 
+            # Merge sublists into a single list
+            a = [j for i in all_features for j in i]
+            data['combined'].append(a)
+            
         cache_data(data)
                 
     else:
