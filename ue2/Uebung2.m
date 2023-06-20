@@ -61,13 +61,30 @@ sound(y, fs);
 %% Schritt 2
 
 % Stimme laden
-voice = load("data\femalevoice.mat", "female");
-voiceData = voice{2,2};
-numIntervals = size(voiceData{:,1});
+voice = load("./data/femalevoice.mat").female;
 
-for i = 1:numIntervals
-    interval = [voiceData{1:2,i}];
-    phonem = voiceData{3,i};
+% Dictionary für lpc coeffs
+lpcsPhonemDict = dictionary;
+
+for i = 1:10
+    [x, fs] = audioread(['./data/female/', num2str(i, '%0.5d'), '.wav']);
     
+    % Intervalle und dazugehörige phoneme laden
+    voiceData = voice{2,i};
+    numIntervals = size(voiceData, 1);
+    
+
+    for j = 1:numIntervals
+        interval = [voiceData{j, 1:2}];
+        intervalSample = round(interval ./ 1e7 .* fs); % 100 nanoseconds to seconds to samples
+        phonem = voiceData{j,3};
+        
+        lpcCoeffsPhonem = lpc(x(intervalSample(1) + 1:intervalSample(2)), order);
+    
+        % TODO: average instead of replace
+        lpcsPhonemDict{phonem} = lpcCoeffsPhonem;
+    end
 end
+
+%% Schritt 3
     
