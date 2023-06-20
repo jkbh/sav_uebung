@@ -56,3 +56,18 @@ y = y / max(abs(y));
 
 % Abspielen des vokalisierten Signals
 sound(y, fs);
+
+
+%% Schritt 2
+
+% Stimme laden
+voice = load("data\femalevoice.mat", "female");
+voiceData = voice{2,2};
+numIntervals = size(voiceData{:,1});
+
+for i = 1:numIntervals
+    interval = [voiceData{1:2,i}];
+    phonem = voiceData{3,i};
+    
+end
+    
