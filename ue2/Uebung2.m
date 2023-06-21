@@ -64,15 +64,14 @@ sound(y, fs);
 voice = load("./data/femalevoice.mat").female;
 
 % Dictionary für lpc coeffs
-lpcsPhonemDict = dictionary;
+lpcsPhonemDict = dictionary(string([]), cell([]));
 
 for i = 1:10
     [x, fs] = audioread(['./data/female/', num2str(i, '%0.5d'), '.wav']);
     
     % Intervalle und dazugehörige phoneme laden
     voiceData = voice{2,i};
-    numIntervals = size(voiceData, 1);
-    
+    numIntervals = size(voiceData, 1);    
 
     for j = 1:numIntervals
         interval = [voiceData{j, 1:2}];
@@ -81,10 +80,37 @@ for i = 1:10
         
         lpcCoeffsPhonem = lpc(x(intervalSample(1) + 1:intervalSample(2)), order);
     
-        % TODO: average instead of replace
-        lpcsPhonemDict{phonem} = lpcCoeffsPhonem;
+        % Build up dict with lpc coefficients for all phonem samples
+        if isKey(lpcsPhonemDict, phonem)
+            lpcsPhonemDict{phonem} =  cat(1, lpcsPhonemDict{phonem}, lpcCoeffsPhonem);
+        else
+            lpcsPhonemDict{phonem} =  lpcCoeffsPhonem;
+        end        
     end
 end
 
+numPhonems = numEntries(lpcsPhonemDict);
+
+% average over lpc coefficients
+for i = 1:numPhonems
+    phonems = keys(lpcsPhonemDict);
+    phonem = phonems(i);
+    lpcsPhonemDict{phonem} = mean(lpcsPhonemDict{phonem}, 1);
+end
+
 %% Schritt 3
+
+phonems = ["ah", "m", "ah"];
+
+% TODO: overlap add & wie lange dauert ein phonem?
+for i = 1:size(phonems)
+    excitation = [1; zeros(frameLengthSamples - 1, 1)];
+    voicedFrame = filter(1, lpcsPhonemDict{phonems(i)}, excitation);
+    y = voicedFrame;
+
+    % Normalisierung der Ausgabe auf den Bereich [-1, 1]
+    y = y / max(abs(y));
     
+    % Abspielen des vokalisierten Signals
+    sound(y, fs);
+end
