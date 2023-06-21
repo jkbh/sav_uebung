@@ -55,7 +55,7 @@ end
 y = y / max(abs(y));
 
 % Abspielen des vokalisierten Signals
-sound(y, fs);
+%sound(y, fs);
 
 
 %% Schritt 2
@@ -100,17 +100,29 @@ end
 
 %% Schritt 3
 
-phonems = ["ah", "m", "ah"];
+phonems = ["jh", "ey", "k", "ah", "b"];
+%phonems = ["m", "ae", "el", "f"];
 
-% TODO: overlap add & wie lange dauert ein phonem?
-for i = 1:size(phonems)
+outputLength = (length(phonems) - 1) * overlapSamples + frameLengthSamples;
+output = zeros(outputLength, 1);
+
+for i = 1:length(phonems)
     excitation = [1; zeros(frameLengthSamples - 1, 1)];
     voicedFrame = filter(1, lpcsPhonemDict{phonems(i)}, excitation);
-    y = voicedFrame;
-
-    % Normalisierung der Ausgabe auf den Bereich [-1, 1]
-    y = y / max(abs(y));
     
-    % Abspielen des vokalisierten Signals
-    sound(y, fs);
+    startIdx = (i - 1) * overlapSamples + 1;
+    endIdx = startIdx + frameLengthSamples - 1;
+    
+    if endIdx > outputLength
+        voicedFrame = voicedFrame(1:outputLength - startIdx + 1);
+        output(startIdx:end) = output(startIdx:end) + voicedFrame;
+    else
+        output(startIdx:endIdx) = output(startIdx:endIdx) + voicedFrame;
+    end
 end
+
+% Normalisierung des vokalisierten Signals auf den Bereich [-1, 1]
+output = output / max(abs(output));
+
+% Abspielen des vokalisierten Signals
+sound(output, fs);
