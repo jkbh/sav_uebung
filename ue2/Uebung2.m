@@ -100,14 +100,19 @@ end
 
 %% Schritt 3
 
-phonems = ["jh", "ey", "k", "ah", "b"];
-%phonems = ["m", "ae", "el", "f"];
+%phonems = ["jh", "ey", "k", "ah", "b"];
+phonems = ["m", "ae", "el", "f"];
 
+frameLengthSamples = 0.4 * fs;
+overlap = 0.65;s
+overlapSamples = round(frameLengthSamples * overlap);
 outputLength = (length(phonems) - 1) * overlapSamples + frameLengthSamples;
 output = zeros(outputLength, 1);
 
 for i = 1:length(phonems)
-    excitation = [1; zeros(frameLengthSamples - 1, 1)];
+    excitationVoiceless = randn(frameLengthSamples, 1);
+    excitationVoice = [1; zeros(frameLengthSamples - 1, 1)];
+    excitation = 0.97 * excitationVoice + 0.03 * excitationVoiceless;
     voicedFrame = filter(1, lpcsPhonemDict{phonems(i)}, excitation);
     
     startIdx = (i - 1) * overlapSamples + 1;
