@@ -1,6 +1,6 @@
 .env/
 .venv/
 data/
-**/*.pdf
+*.pdf
 *.csv
 *.jpg
