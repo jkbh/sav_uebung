@@ -1,13 +1,7 @@
-% 1. Laden der Audiodatei
-filename = './audio_file.wav';
-%% Ohne native sind alles sehr kleine double werte 
-%% und werden bei dem round() zu 0
-%% Mit int16 macht die norm() probleme
-%[x, fs] = audioread(filename, 'native');  
-[x, fs] = audioread(filename);  
+filename = "./audio_file.wav";
+[x, fs1] = audioread(filename, "native");
+[y, fs2] = audioread(filename);
 
-
-% 2. Quantisierung mit verschiedenen Schrittweiten
 step_sizes = 1:300;
 errors = zeros(size(step_sizes));
 entropies = zeros(size(step_sizes));
@@ -15,19 +9,25 @@ entropies = zeros(size(step_sizes));
 for i = 1:length(step_sizes)
     step_size = step_sizes(i);
     % Quantisierung des Signals
-    x_quantized = round(x * step_size) / step_size;
-    % 3. Berechnung der Entropie
-    probabilities = histcounts(x_quantized, 'Normalization', 'probability');
-    entropies(i) = -sum(probabilities .* log2(probabilities + eps));
-    
-    % 4. Berechnung des Fehlers
-    errors(i) = norm(x - x_quantized, 2);
+    x_q = round(x / step_size) * step_size;
+
+    % Histogramm erstellen
+    histogram = histcounts(x_q, 'Normalization', 'probability');
+
+    % Entropie berechnen
+    entropies(i) = -sum(histogram .* log2(histogram), 'omitnan');
+    errors(i) = norm(double(x) - double(x_q), 2);
 end
 
-% 5. Darstellung des Fehlers in Abhängigkeit der Entropie
 figure;
 plot(entropies, errors, 'o');
 xlabel('Entropie');
 ylabel('Fehler (D)');
 title('Fehler in Abhängigkeit der Entropie');
 grid on;
+
+% Normalisierung auf -1 bis 1 für sound()
+normalized_vec = (2*(double(x_q) - double(min(x_q)))/(double(max(x_q)) - double(min(x_q)))) - 1;
+
+
+sound(normalized_vec, fs1);
